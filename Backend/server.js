@@ -20,32 +20,50 @@ app.post("/analyze", async (req, res) => {
                 error: "Transcript is required"
             });
         }
+        console.log("Transcript:",transcript);
 
         // AI prompt
-        const prompt = `
-You are an expert supervisor feedback analyzer.
+        const prompt = `You are an expert supervisor feedback analyzer.
 
-Use the following rubric and KPI definitions
-to analyze the transcript.
+Analyze the transcript using this rubric:
 
-RUBRIC:
-${JSON.stringify(rubricData.rubric)}
+1-3:
+Needs Attention
+- no initiative
+- disengaged
+- directionless
 
-ASSESSMENT DIMENSIONS:
-${JSON.stringify(rubricData.assessmentDimensions)}
+4-6:
+Productive Executor
+- reliable
+- completes assigned tasks
+- consistent execution
 
-KPI DEFINITIONS:
-${JSON.stringify(rubricData.kpis)}
-
-Analyze the transcript and return ONLY valid JSON.
+7-10:
+Problem Solver / Systems Builder
+- identifies problems proactively
+- builds systems/tools/processes
+- improves business operations
+- drives measurable impact
 
 IMPORTANT:
-- Do not return markdown
-- Do not write explanations
-- Do not add extra text
-- Return only pure JSON
+Difference between 6 and 7:
+6 = executes assigned work well
+7 = independently identifies problems and creates solutions
 
-Required JSON structure:
+Business KPIs:
+- lead_generation
+- lead_conversion
+- upselling
+- cross_selling
+- nps
+- pat
+- tat
+- quality
+
+Return ONLY valid JSON.
+
+Required format:
 
 {
   "evidence": [
@@ -54,22 +72,20 @@ Required JSON structure:
       "type": "positive/negative/neutral"
     }
   ],
-
   "rubricScore": number,
-
   "scoreJustification": "text",
+  "kpiMapping": ["text"],
+  "gapAnalysis": ["text"],
+  "followUpQuestions": ["text"]
+  Return STRICT valid JSON only.
 
-  "kpiMapping": [
-    "text"
-  ],
-
-  "gapAnalysis": [
-    "text"
-  ],
-
-  "followUpQuestions": [
-    "text"
-  ]
+Rules:
+- No markdown
+- No comments
+- No explanations
+- No broken words
+- No trailing commas
+- Ensure JSON.parse() can parse the output
 }
 
 Transcript:
@@ -87,9 +103,15 @@ ${transcript}
                 },
 
                 body: JSON.stringify({
-                    model: "llama3.2",
+                    model: "phi3",
                     prompt: prompt,
-                    stream: false
+                    stream: false,
+                     format: "json",
+                     options: {
+        num_predict: 400,
+        temperature:0.2
+    }
+
                 })
             }
         );
@@ -103,11 +125,29 @@ ${transcript}
         console.log("AI RESPONSE:");
         console.log(aiText);
 
-        // parse JSON safely
-        const analysis = JSON.parse(aiText);
+      let cleanedText = aiText
+    .replace(/```json/g, "")
+    .replace(/```/g, "")
+    .replace(/\/\/.*$/gm, "")
+    .trim();
 
-        // send to frontend
-        res.json(analysis);
+     try {
+
+    const analysis = JSON.parse(cleanedText);
+
+    res.json(analysis);
+
+} catch(parseError) {
+
+    console.log("JSON Parse Error");
+
+    console.log(parseError);
+
+    res.json({
+        error: "AI returned invalid JSON",
+        rawResponse: cleanedText
+    });
+}
 
     } catch (error) {
 
